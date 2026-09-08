@@ -35,6 +35,7 @@ class Signer:
         self.pid = None
         self.lock = threading.Lock()
         self.attach = attach
+        self.pending_relay = None
 
     def _get_device(self):
         if self.device_host:
@@ -84,6 +85,18 @@ class Signer:
             print(f"[signer] reattached pid={self.pid} ping={ping}", flush=True)
         except Exception as e:
             print(f"[signer] reattach ping failed: {e}", flush=True)
+        # re-arm pending relay after reattach (script state was wiped)
+        if self.pending_relay:
+            try:
+                self.script.exports_sync.setrelay(
+                    self.pending_relay["method"],
+                    self.pending_relay["url"],
+                    self.pending_relay.get("body", ""),
+                    {},
+                )
+                print(f"[signer] rearmed relay -> {self.pending_relay['url']}", flush=True)
+            except Exception as e:
+                print(f"[signer] rearm relay failed: {e}", flush=True)
 
     def start(self):
         self.dev = self._get_device()
@@ -133,6 +146,17 @@ class Signer:
         except Exception as e:
             return {"pid": self.pid, "ping": f"ERR:{e}"}
 
+    def set_relay(self, method: str, url: str, body: str) -> str:
+        self.pending_relay = {"method": method, "url": url, "body": body}
+        with self.lock:
+            self._ensure_attached()
+            return str(self.script.exports_sync.setrelay(method, url, body, {}))
+
+    def get_relay(self) -> str:
+        with self.lock:
+            self._ensure_attached()
+            return str(self.script.exports_sync.getrelay())
+
 
 class Handler(BaseHTTPRequestHandler):
     signer: Signer = None  # type: ignore[assignment]
@@ -171,6 +195,23 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(200, {"ok": True, "deviceCode": self.signer.script.exports_sync.devicecode()})
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})
+        elif self.path == "/relay-result":
+            try:
+                self._json(200, {"ok": True, "result": self.signer.get_relay()})
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+        elif self.path == "/relay-wait":
+            try:
+                deadline = time.time() + 40
+                out = None
+                while time.time() < deadline:
+                    out = self.signer.get_relay()
+                    if out and out != "null":
+                        break
+                    time.sleep(1)
+                self._json(200, {"ok": True, "result": out})
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
         else:
             self._json(404, {"error": "not found"})
 
@@ -187,6 +228,15 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 out = self.signer.sign(body, typ)
                 self._json(200, {"ok": True, "wToken": out})
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+        elif self.path == "/relay":
+            try:
+                method = str(data.get("method", "GET")).upper()
+                url = str(data.get("url", ""))
+                rbody = str(data.get("body", ""))
+                out = self.signer.set_relay(method, url, rbody)
+                self._json(200, {"ok": True, "queued": out})
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})
         else:

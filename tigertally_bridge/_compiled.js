@@ -1,5 +1,5 @@
 📦
-475817 /hook.js
+477302 /hook.js
 ✄
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
@@ -13661,17 +13661,16 @@ var require_hook = __commonJS({
     init_frida_java_bridge();
     var classTT = null;
     var u0Class = null;
-    var mMethod = null;
     var deviceCode = "unknown";
-    var lastUrl = "none";
-    var lastHeaders = "none";
+    var relay = null;
+    var relayResp = null;
+    var relaySeq = 0;
     var ready = null;
     function init() {
       return new Promise((resolve) => {
         frida_java_bridge_default.perform(() => {
           try {
             classTT = frida_java_bridge_default.use("com.aliyun.TigerTally.TigerTallyAPI");
-            console.log("[hook] resolved TigerTallyAPI");
             const vs = classTT.vmpSign;
             if (vs && typeof vs.implementation !== "undefined") {
               vs.implementation = function(type, bytes) {
@@ -13685,23 +13684,19 @@ var require_hook = __commonJS({
                     bodyStr = "<bytes>";
                   }
                   console.log("[SIGN] type=" + type + " body=" + bodyStr.slice(0, 120));
-                  console.log("[SIGN] out=" + String(out));
                 } catch (e) {
                   console.log("[SIGN] err=" + e);
                 }
                 return out;
               };
-              console.log("[hook] hooked vmpSign");
             }
           } catch (e) {
             console.error("[hook] resolve TigerTallyAPI failed: " + e);
           }
           try {
             u0Class = frida_java_bridge_default.use("com.tomoro.indonesia.common.tools.u0");
-            console.log("[hook] resolved u0");
             const m = u0Class.m;
             if (m && typeof m.implementation !== "undefined") {
-              mMethod = m;
               m.implementation = function() {
                 let out = null;
                 try {
@@ -13712,9 +13707,6 @@ var require_hook = __commonJS({
                 }
                 return out;
               };
-              console.log("[hook] hooked u0.m() deviceCode getter");
-            } else {
-              console.log("[hook] u0.m not hookable: typeof=" + typeof m);
             }
           } catch (e) {
             console.error("[hook] resolve u0 failed: " + e);
@@ -13723,26 +13715,68 @@ var require_hook = __commonJS({
             const I = frida_java_bridge_default.use("com.tomoro.indonesia.common.config.i");
             const m2 = I.c;
             if (m2 && typeof m2.implementation !== "undefined") {
-              m2.implementation = function(req, chain) {
-                try {
+              m2.implementation = function(request, chain) {
+                if (relay) {
+                  const r = relay;
+                  relay = null;
+                  relaySeq++;
+                  const seq = relaySeq;
                   try {
-                    const hs = req.headers();
-                    console.log("[CAP] url=" + String(req.url()));
-                    console.log("[CAP] headers=" + String(hs.toString()));
-                  } catch (e2) {
-                    console.log("[CAP] req=" + String(req) + " | " + e2);
+                    const b = request.o();
+                    b.I(r.url);
+                    let bodyK0 = null;
+                    if (r.body && r.body.length > 0) {
+                      const d0 = frida_java_bridge_default.use("okhttp3.d0").e.d("application/json; charset=utf-8");
+                      bodyK0 = frida_java_bridge_default.use("okhttp3.k0").Companion.c(r.body, d0);
+                    }
+                    b.t(r.method, bodyK0);
+                    console.log("[RLY] swap -> " + r.method + " " + r.url + " seq=" + seq);
+                    return m2.apply(b.b(), chain);
+                  } catch (e) {
+                    console.log("[RLY] build failed " + e + " seq=" + seq);
+                    relayResp = { ok: false, seq, error: String(e) };
+                    relay = null;
+                    return m2.apply(this, arguments);
                   }
-                } catch (e) {
-                  console.log("[CAP] ERR1:" + e);
                 }
                 return m2.apply(this, arguments);
               };
-              console.log("[hook] hooked request interceptor c()");
-            } else {
-              console.log("[hook] i.c not hookable: " + typeof m2);
+              console.log("[hook] hooked request interceptor c() + relay");
             }
           } catch (e) {
             console.error("[hook] interceptor hook failed: " + e);
+          }
+          try {
+            const I = frida_java_bridge_default.use("com.tomoro.indonesia.common.config.i");
+            const ma = I.a;
+            if (ma && typeof ma.implementation !== "undefined") {
+              ma.implementation = function(response, chain) {
+                try {
+                  if (relaySeq > 0 && (relayResp === null || !relayResp.ok)) {
+                    const seq = relaySeq;
+                    const st = Number(response.T());
+                    let bodyStr = "";
+                    try {
+                      const src = response.L().source();
+                      const lv = src.f().d();
+                      bodyStr = String(lv.Q0(frida_java_bridge_default.use("java.nio.charset.Charset").forName("UTF-8")));
+                    } catch (e2) {
+                      bodyStr = "ERR:" + e2 + " | " + String(response);
+                    }
+                    relayResp = { ok: true, seq, status: st, body: bodyStr };
+                    console.log("[RLY] resp seq=" + seq + " st=" + st + " len=" + bodyStr.length);
+                  } else {
+                    console.log("[RESP] st=" + Number(response.T()));
+                  }
+                } catch (e) {
+                  console.log("[RLY] resp hook err " + e);
+                }
+                return ma.apply(this, arguments);
+              };
+              console.log("[hook] hooked response interceptor a()");
+            }
+          } catch (e) {
+            console.error("[hook] response hook failed: " + e);
           }
           resolve();
         });
@@ -13763,24 +13797,20 @@ var require_hook = __commonJS({
           return "ERR:" + String(e);
         }
       },
-      hash: async (type, body) => {
-        await ready;
-        if (!classTT) return "ERR:no-class";
-        try {
-          const bytes = frida_java_bridge_default.array("byte", Array.from(Buffer2.from(body, "utf-8")));
-          const out = classTT.vmpHash(Number(type), bytes);
-          return String(out);
-        } catch (e) {
-          return "ERR:" + String(e);
-        }
-      },
       devicecode: async () => {
         await ready;
         return deviceCode;
       },
-      lastheaders: async () => {
+      setrelay: async (method, url, body, headers) => {
         await ready;
-        return JSON.stringify({ url: lastUrl, headers: lastHeaders, deviceCode });
+        relay = { method, url, body: body || "", headers: headers || {} };
+        relayResp = null;
+        relaySeq = 0;
+        return "queued";
+      },
+      getrelay: async () => {
+        await ready;
+        return relayResp ? JSON.stringify(relayResp) : "null";
       }
     };
   }
