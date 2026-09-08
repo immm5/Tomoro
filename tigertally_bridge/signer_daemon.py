@@ -56,19 +56,21 @@ class Signer:
 
     def _ensure_attached(self):
         """Re-attach if the app restarted (PID changed / session dead)."""
-        if self.session is not None:
+        if self.session is not None and self.script is not None:
             try:
                 self.script.exports_sync.ping()
                 return
             except Exception:
                 pass
-        # try clean detach first
+        # session/script dead — drop stale refs completely
         for s in (self.session,):
             try:
                 if s is not None:
                     s.detach()
             except Exception:
                 pass
+        self.session = None
+        self.script = None
         if self.attach:
             self.pid = self._resolve_pid()
             if self.pid is None:
