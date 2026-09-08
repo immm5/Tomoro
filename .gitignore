@@ -8,8 +8,22 @@ hasil.json
 hasil.txt
 logs/
 
-# old HAR dump — nome too big, reference kept in old/
+# google sheets service-account creds (secret)
+immm-*.json
+
+# old HAR dump — name too big, reference kept in old/
 old/
+
+# reverse-engineering scratch (rebuild anyway)
+apk/
+jadx_out/
+tomoro.xapk
+
+# frida runtime binaries (rebuildable)
+frida-server-arm64
+
+# node (bridge rebuild: npm install && frida-compile)
+tigertally_bridge/node_modules/
 
 # misc
 .hcl*

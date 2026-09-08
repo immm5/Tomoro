@@ -97,6 +97,16 @@ TIMEZONE = env("TIMEZONE", "Asia/Bangkok")
 WTOKEN_PASSTHRU = env("WTOKEN_PASSTHRU", "")
 SENDMSG_S_HEADER = env("SENDMSG_S_HEADER", "9464daa10b535370a24a2b978028e640")
 
+# --- TigerTally wToken signer (frida bridge) ---
+# Tomoro API sekarang di belakang Aliyun WAF: semua request MANDATORIAK header
+# `wToken`, disign oleh native libtiger_tally.so (vmpSign(body_bytes)). Python
+# saja tidak bisa kalkulasi itu → bridge ke rooted phone via frida-java-bridge
+# daemon (see tigertally_bridge/). USE_SIGNER=1 = koppel wToken per request.
+USE_SIGNER     = env_bool("USE_SIGNER", True)
+SIGNER_URL     = env("SIGNER_URL", "http://127.0.0.1:8642")
+SIGNER_TIMEOUT = env_int("SIGNER_TIMEOUT", 15)
+SIGNER_RETRIES = env_int("SIGNER_RETRIES", 3)
+
 MIN_AGE = env_int("MIN_AGE", 20)
 MAX_AGE = env_int("MAX_AGE", 40)
 BD_OFF_MIN = env_int("BIRTHDAY_OFFSET_MIN", 41)
@@ -258,6 +268,59 @@ def normalize_phone(raw: str) -> tuple[str, str]:
 # HTTP client (Tomoro)
 # ---------------------------------------------------------------------------
 
+class TigerTallySigner:
+    """Client ke frida-bridge daemon (tigertally_bridge/signer_daemon.py).
+
+    Daemon lewat rooted phone memanggil TigerTallyAPI.vmpSign(type, bodyBytes)
+    — kalkulasi wToken yang server Tomoro (Aliyun WAF) ceck.
+    """
+
+    def __init__(self, url: str = SIGNER_URL, timeout: int = SIGNER_TIMEOUT,
+                 retries: int = SIGNER_RETRIES):
+        self.url = url.rstrip("/")
+        self.timeout = timeout
+        self.retries = retries
+        self._fail = False
+
+    @property
+    def available(self) -> bool:
+        return USE_SIGNER and not self._fail and self.url != ""
+
+    def sign(self, body_bytes: bytes, typ: int = 1) -> str:
+        """Return wToken untuk body_bytes EXACT.
+
+        CRITICAL: body harus EXACT bytes yang akan verstuurd — re-stringify
+        setelah signing = signature break (server ceck body diff).
+        """
+        if not self.available:
+            return WTOKEN_PASSTHRU
+        # body bytes → UTF-8 string (signer side encodes same utf-8)
+        payload = body_bytes.decode("utf-8", errors="replace")
+        last: Optional[BaseException] = None
+        for i in range(max(1, self.retries)):
+            try:
+                r = requests.post(f"{self.url}/sign",
+                                  json={"body": payload, "type": typ},
+                                  timeout=self.timeout)
+                r.raise_for_status()
+                d = r.json()
+                if not d.get("ok"):
+                    raise RuntimeError(f"signer return ok=false: {d}")
+                tok = str(d.get("wToken", ""))
+                if not tok or not tok.startswith("000"):
+                    raise RuntimeError(f"wToken shape asing: {tok[:40]}")
+                return tok
+            except Exception as e:  # noqa: BLE001
+                last = e
+                if i + 1 < max(1, self.retries):
+                    time.sleep(1.0)
+        self._fail = True
+        raise RuntimeError(f"TigerTally signer tidak reachable ({self.url}): {last}")
+
+
+SIGNER = TigerTallySigner()
+
+
 class TomoroClient:
     def __init__(self, persona: Persona, *,
                  proxy_pool: Optional[ProxyPool] = None,
@@ -312,6 +375,12 @@ class TomoroClient:
             body_bytes = json.dumps(json_body, separators=(",", ":")).encode("utf-8")
             headers["Content-Type"] = "application/json; charset=UTF-8"
             headers["Content-Length"] = str(len(body_bytes))
+
+        # TigerTally wToken: sign EXACT serde body bytes (app interceptor shape).
+        # GET/zonder body → sign empty byte string "". Server WAF flags missing.
+        if SIGNER.available:
+            sign_input = body_bytes if body_bytes is not None else b""
+            headers["wToken"] = SIGNER.sign(sign_input)
 
         attempts = 0
         max_attempts = (self.max_proxy_attempts if self.proxy_pool and not self.proxy_pool.empty else 1)
@@ -722,11 +791,27 @@ def precheck_proxy(pool: Optional[ProxyPool],
             raise
         tried += 1
         try:
+            pre_headers = {
+                "User-Agent": USER_AGENT, "Connection": "close",
+                "token": "", "revision": REVISION,
+                "countryCode": COUNTRY_CODE, "appChannel": APP_CHANNEL,
+                "appLanguage": APP_LANGUAGE, "timeZone": TIMEZONE,
+                "deviceCode": "fce81d75253956c0",
+                "longitude": "110.81048599783334", "latitude": "-7.562907060833333",
+                "ucde": "t698",
+            }
+            # WAF vereist wToken — sign empty body (GET). Zonder wordt proxy
+            # onterecht als "mat" gemarkeerd (405 challenge).
+            if SIGNER.available:
+                try:
+                    pre_headers["wToken"] = SIGNER.sign(b"")
+                except Exception:  # noqa: BLE001 — signer down: fallback plain
+                    pass
             r = requests.get(
                 url,
                 proxies=entry.to_requests(),
                 timeout=timeout,
-                headers={"User-Agent": USER_AGENT, "Connection": "close"},
+                headers=pre_headers,
             )
             # Server menjawab apapun statusnya = proxy reach destination.
             if r.status_code < 500:
