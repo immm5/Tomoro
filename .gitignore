@@ -30,3 +30,5 @@ tigertally_bridge/node_modules/
 .hermes/
 refs/
 deleted/
+.hermes-tmp*/
+scr*.png

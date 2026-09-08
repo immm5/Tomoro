@@ -281,16 +281,39 @@ class TigerTallySigner:
         self.timeout = timeout
         self.retries = retries
         self._fail = False
+        self._device_code: Optional[str] = None
 
     @property
     def available(self) -> bool:
         return USE_SIGNER and not self._fail and self.url != ""
 
-    def sign(self, body_bytes: bytes, typ: int = 1) -> str:
-        """Return wToken untuk body_bytes EXACT.
+    def bridge_device_code(self) -> str:
+        """deviceCode ECHT dari app (via u0.m() hook).
 
-        CRITICAL: body harus EXACT bytes yang akan verstuurd — re-stringify
-        setelah signing = signature break (server ceck body diff).
+        Server bind wToken aan device-hash in de token; als onze header deviceCode
+        anders is → 405. Daarom MOET header deviceCode gelijk zijn aan die van de
+        phone-app die de token signeert.
+        """
+        if self._device_code:
+            return self._device_code
+        try:
+            r = requests.get(f"{self.url}/devicecode", timeout=min(self.timeout, 10))
+            r.raise_for_status()
+            d = r.json()
+            dc = str(d.get("deviceCode", "") or "")
+            if dc and dc != "unknown" and not dc.startswith("ERR"):
+                self._device_code = dc
+                log(f"  deviceCode (bridge): {dc}", C.DIM)
+                return dc
+        except Exception as e:  # noqa: BLE001
+            log(f"  ! bridge deviceCode gagal: {e}", C.Y)
+        return "fe54e4426469bb55"  # fallback: cached van bridge
+
+    def sign(self, body_bytes: bytes, typ: int = 1) -> str:
+        """Return wToken voor body_bytes EXACT.
+
+        CRITICAL: body moet EXACT bytes die verstuurd gaat worden — re-stringify
+        na signing = signature break (server checkt body diff).
         """
         if not self.available:
             return WTOKEN_PASSTHRU
@@ -340,6 +363,11 @@ class TomoroClient:
             self.current_proxy = proxy_pool.get_next()
 
     def _headers(self, extra: Optional[dict[str, str]] = None) -> dict[str, str]:
+        device_code = self.persona.device_code
+        # WAF: token is gesigned door de phone-app SDK → deviceCode in header
+        # MOET gelijk zijn aan die van de bridge (anders 405).
+        if USE_SIGNER and SIGNER.available:
+            device_code = SIGNER.bridge_device_code() or device_code
         h = {
             "Content-Type": "application/json",
             "token": self.token,
@@ -348,7 +376,7 @@ class TomoroClient:
             "appChannel": APP_CHANNEL,
             "appLanguage": APP_LANGUAGE,
             "timeZone": TIMEZONE,
-            "deviceCode": self.persona.device_code,
+            "deviceCode": device_code,
             "longitude": self.persona.longitude,
             "latitude": self.persona.latitude,
             "ucde": "t698",

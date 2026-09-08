@@ -1,5 +1,5 @@
 📦
-473302 /hook.js
+475817 /hook.js
 ✄
 var __defProp = Object.defineProperty;
 var __getOwnPropNames = Object.getOwnPropertyNames;
@@ -13660,6 +13660,11 @@ var require_hook = __commonJS({
     init_node_globals();
     init_frida_java_bridge();
     var classTT = null;
+    var u0Class = null;
+    var mMethod = null;
+    var deviceCode = "unknown";
+    var lastUrl = "none";
+    var lastHeaders = "none";
     var ready = null;
     function init() {
       return new Promise((resolve) => {
@@ -13667,11 +13672,79 @@ var require_hook = __commonJS({
           try {
             classTT = frida_java_bridge_default.use("com.aliyun.TigerTally.TigerTallyAPI");
             console.log("[hook] resolved TigerTallyAPI");
-            resolve();
+            const vs = classTT.vmpSign;
+            if (vs && typeof vs.implementation !== "undefined") {
+              vs.implementation = function(type, bytes) {
+                let out = null;
+                try {
+                  out = vs.apply(this, arguments);
+                  let bodyStr = "";
+                  try {
+                    bodyStr = String(bytes);
+                  } catch (e) {
+                    bodyStr = "<bytes>";
+                  }
+                  console.log("[SIGN] type=" + type + " body=" + bodyStr.slice(0, 120));
+                  console.log("[SIGN] out=" + String(out));
+                } catch (e) {
+                  console.log("[SIGN] err=" + e);
+                }
+                return out;
+              };
+              console.log("[hook] hooked vmpSign");
+            }
           } catch (e) {
-            console.error("[hook] resolve failed: " + e);
-            resolve();
+            console.error("[hook] resolve TigerTallyAPI failed: " + e);
           }
+          try {
+            u0Class = frida_java_bridge_default.use("com.tomoro.indonesia.common.tools.u0");
+            console.log("[hook] resolved u0");
+            const m = u0Class.m;
+            if (m && typeof m.implementation !== "undefined") {
+              mMethod = m;
+              m.implementation = function() {
+                let out = null;
+                try {
+                  out = m.apply(this, arguments);
+                  deviceCode = String(out);
+                } catch (e) {
+                  deviceCode = "ERR:" + e;
+                }
+                return out;
+              };
+              console.log("[hook] hooked u0.m() deviceCode getter");
+            } else {
+              console.log("[hook] u0.m not hookable: typeof=" + typeof m);
+            }
+          } catch (e) {
+            console.error("[hook] resolve u0 failed: " + e);
+          }
+          try {
+            const I = frida_java_bridge_default.use("com.tomoro.indonesia.common.config.i");
+            const m2 = I.c;
+            if (m2 && typeof m2.implementation !== "undefined") {
+              m2.implementation = function(req, chain) {
+                try {
+                  try {
+                    const hs = req.headers();
+                    console.log("[CAP] url=" + String(req.url()));
+                    console.log("[CAP] headers=" + String(hs.toString()));
+                  } catch (e2) {
+                    console.log("[CAP] req=" + String(req) + " | " + e2);
+                  }
+                } catch (e) {
+                  console.log("[CAP] ERR1:" + e);
+                }
+                return m2.apply(this, arguments);
+              };
+              console.log("[hook] hooked request interceptor c()");
+            } else {
+              console.log("[hook] i.c not hookable: " + typeof m2);
+            }
+          } catch (e) {
+            console.error("[hook] interceptor hook failed: " + e);
+          }
+          resolve();
         });
       });
     }
@@ -13679,7 +13752,6 @@ var require_hook = __commonJS({
     });
     rpc.exports = {
       ping: () => classTT ? "pong" : "no-class",
-      // body: utf8 string of the exact request body bytes; type: int (interceptor uses 1)
       sign: async (type, body) => {
         await ready;
         if (!classTT) return "ERR:no-class";
@@ -13691,7 +13763,6 @@ var require_hook = __commonJS({
           return "ERR:" + String(e);
         }
       },
-      // vmpHash variant (requestType ordinal + bytes)
       hash: async (type, body) => {
         await ready;
         if (!classTT) return "ERR:no-class";
@@ -13703,23 +13774,13 @@ var require_hook = __commonJS({
           return "ERR:" + String(e);
         }
       },
-      session: async () => {
+      devicecode: async () => {
         await ready;
-        if (!classTT) return "ERR:no-class";
-        try {
-          return String(classTT.getSessionId());
-        } catch (e) {
-          return "ERR:" + String(e);
-        }
+        return deviceCode;
       },
-      version: async () => {
+      lastheaders: async () => {
         await ready;
-        if (!classTT) return "ERR:no-class";
-        try {
-          return String(classTT.getVersion());
-        } catch (e) {
-          return "ERR:" + String(e);
-        }
+        return JSON.stringify({ url: lastUrl, headers: lastHeaders, deviceCode });
       }
     };
   }

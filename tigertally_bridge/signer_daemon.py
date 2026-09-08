@@ -53,6 +53,38 @@ class Signer:
                 break
         return best
 
+    def _ensure_attached(self):
+        """Re-attach if the app restarted (PID changed / session dead)."""
+        if self.session is not None:
+            try:
+                self.script.exports_sync.ping()
+                return
+            except Exception:
+                pass
+        # try clean detach first
+        for s in (self.session,):
+            try:
+                if s is not None:
+                    s.detach()
+            except Exception:
+                pass
+        if self.attach:
+            self.pid = self._resolve_pid()
+            if self.pid is None:
+                raise RuntimeError(f"{self.pkg} not running (restart the app)")
+        self.session = self.dev.attach(self.pid)
+        with open(COMPILED, "r", encoding="utf-8") as f:
+            src = f.read()
+        self.script = self.session.create_script(src)
+        self.script.on("message", self._on_message)
+        self.script.load()
+        time.sleep(5)
+        try:
+            ping = self.script.exports_sync.ping()
+            print(f"[signer] reattached pid={self.pid} ping={ping}", flush=True)
+        except Exception as e:
+            print(f"[signer] reattach ping failed: {e}", flush=True)
+
     def start(self):
         self.dev = self._get_device()
         if self.attach:
@@ -91,10 +123,15 @@ class Signer:
 
     def sign(self, body: str, typ: int = 1) -> str:
         with self.lock:
+            self._ensure_attached()
             return self.script.exports_sync.sign(typ, body)
 
     def health(self) -> dict:
-        return {"pid": self.pid, "ping": self.script.exports_sync.ping() if self.script else None}
+        try:
+            self._ensure_attached()
+            return {"pid": self.pid, "ping": self.script.exports_sync.ping() if self.script else None}
+        except Exception as e:
+            return {"pid": self.pid, "ping": f"ERR:{e}"}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -116,6 +153,22 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 h = self.signer.health()
                 self._json(200, {"ok": True, **h})
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+        elif self.path == "/appInfo":
+            try:
+                self._json(200, {"ok": True, "info": self.signer.script.exports_sync.appinfo()})
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+        elif self.path == "/lastheaders":
+            try:
+                self._json(200, self.signer.script.exports_sync.lastheaders())
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+        elif self.path == "/devicecode":
+            try:
+                self.signer._ensure_attached()
+                self._json(200, {"ok": True, "deviceCode": self.signer.script.exports_sync.devicecode()})
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})
         else:
