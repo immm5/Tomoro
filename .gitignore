@@ -1,0 +1,18 @@
+# secrets
+.env
+*.pyc
+__pycache__/
+
+# hasil / output data (akun phone numbers — private)
+hasil.json
+hasil.txt
+logs/
+
+# old HAR dump — nome too big, reference kept in old/
+old/
+
+# misc
+.hcl*
+.hermes/
+refs/
+deleted/

@@ -1,0 +1,111 @@
+# Daftar proxy — satu per baris.
+# Format yang diterima:
+#   host:port
+#   host:port:user:pass
+#   user:pass@host:port
+#   http://user:pass@host:port
+#   https://...
+#   socks5://host:port
+#   socks5://user:pass@host:port
+# Baris yang diawali '#' diabaikan.
+# Hapus contoh di bawah dan isi proxy Anda. Kalau kosong, set USE_PROXY=0 di .env.
+http://hvyylnru:lts0hi2qn2go@45.117.55.190:6836
+http://hvyylnru:lts0hi2qn2go@45.67.3.28:6191
+http://hvyylnru:lts0hi2qn2go@82.21.221.225:7055
+http://hvyylnru:lts0hi2qn2go@82.23.235.40:5364
+http://hvyylnru:lts0hi2qn2go@23.229.126.189:7718
+http://hvyylnru:lts0hi2qn2go@146.103.4.91:6638
+http://hvyylnru:lts0hi2qn2go@45.43.83.27:6310
+http://hvyylnru:lts0hi2qn2go@104.238.9.101:6554
+http://hvyylnru:lts0hi2qn2go@172.102.222.120:6131
+http://hvyylnru:lts0hi2qn2go@46.202.71.174:8182
+http://hvyylnru:lts0hi2qn2go@92.112.235.143:6666
+http://hvyylnru:lts0hi2qn2go@104.222.187.210:6334
+http://hvyylnru:lts0hi2qn2go@142.111.44.92:5804
+http://hvyylnru:lts0hi2qn2go@137.59.7.95:5639
+http://hvyylnru:lts0hi2qn2go@82.22.224.196:7528
+http://hvyylnru:lts0hi2qn2go@82.29.249.73:7910
+http://hvyylnru:lts0hi2qn2go@92.113.119.118:6066
+http://hvyylnru:lts0hi2qn2go@104.252.196.59:5967
+http://hvyylnru:lts0hi2qn2go@45.61.122.127:6419
+http://hvyylnru:lts0hi2qn2go@104.239.41.31:6386
+http://hvyylnru:lts0hi2qn2go@104.252.109.201:7134
+http://hvyylnru:lts0hi2qn2go@152.232.16.43:8594
+http://hvyylnru:lts0hi2qn2go@31.58.26.21:6604
+http://hvyylnru:lts0hi2qn2go@45.39.4.131:5556
+http://hvyylnru:lts0hi2qn2go@45.39.96.65:5478
+http://hvyylnru:lts0hi2qn2go@82.26.221.127:5468
+http://hvyylnru:lts0hi2qn2go@145.223.58.31:6300
+http://hvyylnru:lts0hi2qn2go@148.135.151.117:8368
+http://hvyylnru:lts0hi2qn2go@31.58.10.61:6029
+http://hvyylnru:lts0hi2qn2go@45.43.83.87:6370
+http://hvyylnru:lts0hi2qn2go@154.6.8.86:5553
+http://hvyylnru:lts0hi2qn2go@31.58.18.140:6409
+http://hvyylnru:lts0hi2qn2go@38.154.204.210:8251
+http://hvyylnru:lts0hi2qn2go@198.46.161.57:5107
+http://hvyylnru:lts0hi2qn2go@31.59.15.97:6364
+http://hvyylnru:lts0hi2qn2go@45.61.116.220:6898
+http://hvyylnru:lts0hi2qn2go@154.29.87.19:6440
+http://hvyylnru:lts0hi2qn2go@103.101.90.75:6340
+http://hvyylnru:lts0hi2qn2go@107.175.56.80:6353
+http://hvyylnru:lts0hi2qn2go@23.94.246.116:8069
+http://hvyylnru:lts0hi2qn2go@45.41.177.218:5868
+http://hvyylnru:lts0hi2qn2go@82.25.215.221:5572
+http://hvyylnru:lts0hi2qn2go@142.202.254.91:6069
+http://hvyylnru:lts0hi2qn2go@216.74.80.147:6719
+http://hvyylnru:lts0hi2qn2go@82.29.214.93:6944
+http://hvyylnru:lts0hi2qn2go@148.135.188.186:7218
+http://hvyylnru:lts0hi2qn2go@50.114.84.31:7270
+http://hvyylnru:lts0hi2qn2go@92.113.242.35:6619
+http://hvyylnru:lts0hi2qn2go@104.253.212.152:5562
+http://hvyylnru:lts0hi2qn2go@154.6.126.222:6193
+http://hvyylnru:lts0hi2qn2go@45.131.103.223:6209
+http://hvyylnru:lts0hi2qn2go@148.135.191.26:5585
+http://hvyylnru:lts0hi2qn2go@46.203.134.180:5804
+http://hvyylnru:lts0hi2qn2go@145.223.45.171:7205
+http://hvyylnru:lts0hi2qn2go@31.58.9.136:6209
+http://hvyylnru:lts0hi2qn2go@82.21.218.199:6551
+http://hvyylnru:lts0hi2qn2go@82.24.221.190:6041
+http://hvyylnru:lts0hi2qn2go@45.39.125.245:6653
+http://hvyylnru:lts0hi2qn2go@82.26.221.200:5541
+http://hvyylnru:lts0hi2qn2go@45.131.103.91:6077
+http://hvyylnru:lts0hi2qn2go@45.150.177.49:5422
+http://hvyylnru:lts0hi2qn2go@103.47.53.180:8478
+http://hvyylnru:lts0hi2qn2go@104.239.38.214:6747
+http://hvyylnru:lts0hi2qn2go@184.174.27.243:6466
+http://hvyylnru:lts0hi2qn2go@194.39.34.244:6256
+http://hvyylnru:lts0hi2qn2go@82.24.232.159:6988
+http://hvyylnru:lts0hi2qn2go@104.239.105.207:6737
+http://hvyylnru:lts0hi2qn2go@184.174.126.180:6472
+http://hvyylnru:lts0hi2qn2go@45.38.67.252:7184
+http://hvyylnru:lts0hi2qn2go@45.93.45.202:6387
+http://hvyylnru:lts0hi2qn2go@82.22.211.140:5948
+http://hvyylnru:lts0hi2qn2go@148.135.254.98:6145
+http://hvyylnru:lts0hi2qn2go@38.154.199.214:5368
+http://hvyylnru:lts0hi2qn2go@45.39.15.135:6565
+http://hvyylnru:lts0hi2qn2go@98.159.38.97:6397
+http://hvyylnru:lts0hi2qn2go@109.196.163.171:6269
+http://hvyylnru:lts0hi2qn2go@82.26.222.86:7898
+http://hvyylnru:lts0hi2qn2go@45.67.0.69:6505
+http://hvyylnru:lts0hi2qn2go@23.129.253.190:6808
+http://hvyylnru:lts0hi2qn2go@38.154.217.240:7431
+http://hvyylnru:lts0hi2qn2go@82.23.235.52:5376
+http://hvyylnru:lts0hi2qn2go@104.239.37.69:5721
+http://hvyylnru:lts0hi2qn2go@154.6.129.53:5523
+http://hvyylnru:lts0hi2qn2go@46.202.67.125:8132
+http://hvyylnru:lts0hi2qn2go@64.64.110.25:6548
+http://hvyylnru:lts0hi2qn2go@82.24.212.216:5522
+http://hvyylnru:lts0hi2qn2go@108.165.63.210:5947
+http://hvyylnru:lts0hi2qn2go@84.247.60.42:6012
+http://hvyylnru:lts0hi2qn2go@104.238.49.216:5870
+http://hvyylnru:lts0hi2qn2go@23.27.184.241:5842
+http://hvyylnru:lts0hi2qn2go@107.172.221.166:6121
+http://hvyylnru:lts0hi2qn2go@161.123.154.37:6567
+http://hvyylnru:lts0hi2qn2go@217.198.177.97:5613
+http://hvyylnru:lts0hi2qn2go@46.202.79.104:7114
+http://hvyylnru:lts0hi2qn2go@209.242.203.47:6762
+http://hvyylnru:lts0hi2qn2go@45.127.250.219:5828
+http://hvyylnru:lts0hi2qn2go@108.165.161.191:5932
+http://hvyylnru:lts0hi2qn2go@184.174.126.149:6441
+http://hvyylnru:lts0hi2qn2go@161.123.151.175:6159
+http://hvyylnru:lts0hi2qn2go@185.226.205.71:5603
