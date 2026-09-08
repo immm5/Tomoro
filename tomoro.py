@@ -106,6 +106,13 @@ USE_SIGNER     = env_bool("USE_SIGNER", True)
 SIGNER_URL     = env("SIGNER_URL", "http://127.0.0.1:8642")
 SIGNER_TIMEOUT = env_int("SIGNER_TIMEOUT", 15)
 SIGNER_RETRIES = env_int("SIGNER_RETRIES", 3)
+# SEND request VIA the app's own OkHttp (frida relay). The app's interceptor
+# adds token/deviceCode/wToken itself — request exits the PHONE's real TLS+
+# session, so Aliyun WAF sees the exact same client as the real app.
+# Requires the phone app to run + daemon (tigertally_bridge). Slower (waits
+# for app to consume the relay) but the ONLY path that passes WAF when the
+# direct-signed route is blocked.
+USE_RELAY = env_bool("USE_RELAY", False)
 
 MIN_AGE = env_int("MIN_AGE", 20)
 MAX_AGE = env_int("MAX_AGE", 40)
@@ -338,7 +345,50 @@ class TigerTallySigner:
                 if i + 1 < max(1, self.retries):
                     time.sleep(1.0)
         self._fail = True
-        raise RuntimeError(f"TigerTally signer tidak reachable ({self.url}): {last}")
+        raise RuntimeError(f"TigerTally signer niet bereikbaar ({self.url}): {last}")
+
+    def relay(self, method: str, url: str, body: str = "") -> dict[str, Any]:
+        """Stuur request VIA de app direct (frida relay).
+
+        De app's eigen OkHttp laadt de URL, tekent wToken in de interceptor
+        (vmpSign + 2s cooldown) en stuurt vanaf de phone — TLS/session 100%
+        gelijk aan de echte app. Daemon pollt /relay-wait tot de app de
+        relay consumeert (app moet enige verkeer maken — elke UI tap telt).
+
+        Returns de geparsede JSON body van de API-response.
+        """
+        if not self.available:
+            raise RuntimeError("signer bridge niet beschikbaar voor relay")
+        r = requests.post(f"{self.url}/relay",
+                          json={"method": method.upper(), "url": url, "body": body},
+                          timeout=self.timeout)
+        r.raise_for_status()
+        q = r.json()
+        if not q.get("ok"):
+            raise RuntimeError(f"relay queue mislukt: {q}")
+        w = requests.get(f"{self.url}/relay-wait", timeout=self.timeout + 50)
+        w.raise_for_status()
+        wd = w.json()
+        res = wd.get("result")
+        if not res or res == "null":
+            raise RuntimeError("relay: geen response (app inactief / geen verkeer)")
+        try:
+            parsed = json.loads(res) if isinstance(res, str) else res
+        except json.JSONDecodeError:
+            raise RuntimeError(f"relay ongeldige payload: {str(res)[:200]}")
+        if not parsed.get("ok"):
+            raise RuntimeError(f"relay misser: {parsed}")
+        status = int(parsed.get("status", 0))
+        if status == 405:
+            raise RuntimeError("relay HTTP 405 — WAF blockt nog (server-side); "
+                               "wacht cooldown en probeer app-verkeer")
+        if status != 200:
+            raise RuntimeError(f"relay HTTP {status}: {str(parsed.get('body',''))[:300]}")
+        body_str = parsed.get("body", "")
+        try:
+            return json.loads(body_str)
+        except json.JSONDecodeError:
+            raise RuntimeError(f"relay body geen JSON: {body_str[:300]}")
 
 
 SIGNER = TigerTallySigner()
@@ -397,6 +447,17 @@ class TomoroClient:
     def _req(self, method: str, path: str, *, params=None, json_body=None,
              extra_headers: Optional[dict[str, str]] = None) -> dict[str, Any]:
         url = f"{BASE_URL}{path}"
+        if params:
+            qs = "&".join(f"{k}={requests.utils.quote(str(v))}" for k, v in params.items())
+            url = f"{url}?{qs}"
+
+        # Relay modus: request via de app (phone OkHttp) — omzeilt WAF client-pin.
+        if USE_RELAY and SIGNER.available:
+            body_str = ""
+            if json_body is not None:
+                body_str = json.dumps(json_body, separators=(",", ":"))
+            return SIGNER.relay(method, url, body_str)
+
         body_bytes = None
         headers = self._headers(extra_headers)
         if json_body is not None:

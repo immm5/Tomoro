@@ -22,6 +22,20 @@ tomoro.py  →  SIGNER.sign(body_bytes)  →  header wToken  →  API accept
 `json.dumps(separators=(",", ":"))` → UTF-8 → `vmpSign(1, bytes)`).
 GET request → sign string kosong `""`. Re-stringify setelah signing = signature break!
 
+## Relay modus (WAF client-pin omzeilen)
+
+Sinds de debugsessies blockt Aliyun WAF ook de app zelf (server-side,
+devices/sessie/IP-afhankelijk). De robuuste weg: **stuur elke request VIA de
+app** — frida relay swapped de URL/method/body in de app's EIGEN OkHttp, de
+app tekent wToken zelf (vmpSign + 2s cooldown) en de response komt terug.
+
+```
+tomoro.py (USE_RELAY=1) → POST /relay → app's OkHttp + interceptor → response
+```
+
+Gebruik: `.env` `USE_RELAY=1`. De app moet op de phone draaien EN verkeer
+maken binnen ~40s (elke UI-tap telt), anders /relay-wait timeout.
+
 ## Setup (ker)
 
 1. Rooted phone + app Tomoro installed & **jalan**.
@@ -55,6 +69,7 @@ python tomoro.py --otp-provider hero-sms --count 5 --workers 3
 | Variabel | Default | Tujuan |
 |---|---|---|
 | USE_SIGNER | 1 | 1 = wToken lewat frida bridge per request |
+| USE_RELAY | 0 | 1 = request VIA app (phone OkHttp) — omzeilt WAF pin |
 | SIGNER_URL | http://127.0.0.1:8642 | local bridge daemon |
 | SIGNER_TIMEOUT/RETRIES | 15 / 3 | timeout bridge call |
 | WTOKEN_PASSTHRU | (kosong) | fallback wToken kalau USE_SIGNER=0 |
